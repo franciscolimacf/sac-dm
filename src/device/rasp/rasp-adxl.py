@@ -8,11 +8,6 @@ import json as JSON
 import numpy as np
 from scipy.signal import find_peaks
 
-from uuid import getnode as get_mac
-
-
-
-
 #import sys
 #import os
 #sys.path.append(os.path.abspath("../../sac-dm/"))
@@ -20,7 +15,6 @@ from uuid import getnode as get_mac
 
 from threading import Thread
 from threading import Lock
-
 
 # Calcula SAC-AM (amplitude media dos maximos) utilizando a funcao find_peaks do Python
 def sac_am(data, N):
@@ -61,8 +55,6 @@ def deviation_sac(dataset):
 
 	return standard_deviation	
 	
-	
-	
 def get_device_code(interface):
 	#endereco mac da rasp e retorna
 	try:
@@ -76,16 +68,15 @@ def compute_mean_dev():
 	
 	device = requests.get(url+'device_by_code/'+str(get_device_code('wlan0')))
 	
-	
-	print(device.json()['vehicle_id'])
+	vehicleId = str(device.json()['vehicle_id'])
 	
 	vehicle = requests.get(url+'sacdm_default?vehicle_id=' + str(device.json()['vehicle_id']))
 	
 	print(vehicle.json())
-	print(len(vehicle.json()))
+	#print(len(vehicle.json()))
 	
 	#checa se encontra media e desvio no servidor
-	if(len(vehicle.json())):
+	if vehicle.json() is not None:
 		return
 	else:
 		data=[]
@@ -128,7 +119,7 @@ def compute_mean_dev():
 		print('X: ',mean_x, ' --- ', deviation_x)
 		print('Y: ',mean_y, ' --- ', deviation_y)
 		print('Z: ',mean_z, ' --- ', deviation_z)
-		
+			
 		obj = {
 			'vehicle_id': device.json()['vehicle_id'],
 			'x_mean': mean_x,
@@ -142,9 +133,6 @@ def compute_mean_dev():
 		response = requests.post(url+'sacdm_default', data=send_json, headers={"Content-Type":"application/json"})
 		print(response.status_code)
 	
-		
-
-
 ############################ SEND HTTP #################################
 
 def check_connection(host='https://google.com/'):	
@@ -156,6 +144,9 @@ def check_connection(host='https://google.com/'):
 
 def sendJSONhttp(data, lock):
 	#print("prepping json")
+	
+	array_mean_test =[]
+	
 	json_obj_array = []
 	x_array=[]
 	y_array=[]
@@ -169,23 +160,29 @@ def sendJSONhttp(data, lock):
 			z_array.append(float(split[2])) #z
 		except ValueError:
 			continue
-	sac_array = sac_am(np.array(x_array), 1000) ####
+			
+			
+	mean_z = average_sac(np.array(z_array))
+	print("Mean Z:", mean_z)
+	
+	sac_array_x = sac_am(np.array(x_array), 1000) ####
 	sac_array_y = sac_am(np.array(y_array), 1000)
 	sac_array_z = sac_am(np.array(z_array), 1000)
-	for sac in sac_array:
-		if(sac):
+	for i in range(len(sac_array_x)):
+		if(sac_array_x[i]):
 			item = {'device_id': 1,
-					'value': sac,
+					'value': sac_array_x[i],
 					'timestamp': str(time.time_ns()*1000000),
-					'label': 'teste 01'
+					'label': 'teste 01',
+					'vehicle_id': vehicleId
 					}
 			json_obj_array.append(item)
+	#print("Mean: ", average_sac(sac_array_x))
 	json_string = JSON.dumps(json_obj_array)
 	with lock:
 		print("enviando")
 		status = requests.post(url + 'sac_dm', data=json_string, headers={"Content-Type":"application/json"})
 		print(status.json())
-
 
 ############################ TEXT FILES ################################
 		
@@ -205,24 +202,20 @@ def write_log(data, lock):
 #		log.close()
 #		for l in lines:
 #			sendHttp.append(l.strip())
-#		if(sendJSONhttp(sendHttp, http_lock) == 200):
+#		if(sendJSONhttp(sendHttp, http_lock).status_code == 200):
 #			log = open("log.txt", "w")
 #			log.close()
 #			sendHttp.clear()
-	
 		
-		
-	
 ########################### GLOBAL VAR #################################
-
-
 
 
 #url = 'https://enmpf6xid68v.x.pipedream.net/'
 url = 'http://150.165.167.12:8100/'
-#url = 'http://192.168.0.117:8100/accelerometer/'
 
-ser = serial.Serial("/dev/ttyS0", 921600)
+#ser = serial.Serial("/dev/ttyS0", 921600)
+ser = serial.Serial("/dev/ttyUSB0", 921600)
+
 ser.reset_input_buffer()
 sensor_buffer = []
 
@@ -232,9 +225,11 @@ http_lock = Lock()
 
 send_count =0
 
+vehicleId = "-1"
+
 ############################ MAIN CODE #################################
 
-esp_serial = str(ser.readline())
+#esp_serial = str(ser.readline())
 
 compute_mean_dev()
 	
@@ -253,10 +248,10 @@ while True:
 	#se sim, junta os 15k e envia
 	if len(sensor_buffer) >= 15000:
 		
-		print(time.time()-start)
+		#print(time.time()-start)
 		
-		print(len(sensor_buffer))
-		print(sensor_buffer[0])
+		#print(len(sensor_buffer))
+		#print(sensor_buffer[0])
 		
 		toSend = sensor_buffer.copy()
 
@@ -279,5 +274,3 @@ while True:
 		#break
 		if(send_count==20):
 			break
-
-
