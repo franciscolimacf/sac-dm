@@ -70,8 +70,8 @@ void task2(void *pvParameters) {
  
  
 void setup() {
-  Serial.begin(921600);
-  //Serial.begin(230400);  
+  //Serial.begin(921600);
+  Serial.begin(230400);  
   delay(1000);
   // Inicialização do acelerômetro
   Serial.println("Testando inicio");
