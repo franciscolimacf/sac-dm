@@ -1,16 +1,6 @@
 # Standard python numerical analysis imports:
 import numpy as np
-from scipy import signal
 from scipy.signal import find_peaks, peak_prominences
-
-#import pandas as pd
-#import peakutils
-
-import matplotlib.pyplot as plt
-import matplotlib.mlab as mlab
-import scipy.io
-
-#import h5py
 
 import sys
 import time
@@ -62,15 +52,15 @@ def sac_am(data, N):
 	
 	return sacdm
 
-def plot_trainning_test(sac_am_by_files, sac_dm_by_files, file_tags):
+def plot_trainning_test(sac_am_by_files, sac_dm_by_files, file_tags, file=0):
 	#Plotting test and training from the same file
-	util.plotTraining(sac_am_by_files[0], (f"SAC-AM: {file_tags[0]}"), file_tags[0])
-	util.plotTraining(sac_dm_by_files[0], (f"SAC-DM: {file_tags[0]}"), file_tags[0])
+	util.plotTraining(sac_am_by_files[file], (f"SAC-AM: {file_tags[file]}"), file_tags[file])
+	util.plotTraining(sac_dm_by_files[file], (f"SAC-DM: {file_tags[file]}"), file_tags[file])
 
 def plot_sacs_one_figure(sac_am_by_files, sac_dm_by_files, file_tags, N):
 	#Plotting 3 graphs on the same figure (1 for each axis), including training and testing done on different files.
 	#SAC-AM
-	util.plotSACsInOneFigureWithTraining( sac_am_by_files, (f"SAC-AM: Half training/testing - N{N}"), file_tags)
+	util.plotSACsInOneFigureWithTraining( sac_am_by_files, (f"SAC-AM: N{N}"), file_tags)
 	#SAC-DM
 	util.plotSACsInOneFigureWithTraining( sac_dm_by_files, (f"SAC-DM: Half training/testing - N{N}"), file_tags)
 
@@ -96,7 +86,6 @@ def plot_confusion_matrix_save_txt(sac_am_by_axes, sac_dm_by_axes, file_tags, N,
 			util.confusionMatrix(sac_am_by_axes[i], file_tags, (f"SAC-AM: {auxAxes[i]}"), N, save)
 		for i in range(3):
 			util.confusionMatrix(sac_dm_by_axes[i], file_tags, (f"SAC-DM: {auxAxes[i]}"), N, save)
-
 
 def slinding_window_in_txt(sac_am_by_axes, sac_dm_by_axes, file_tags, N, save=False):
 	#Sliding window in a txt file
@@ -136,24 +125,186 @@ def plot_compare_windows(sac_am_by_axes, sac_dm_by_axes, file_tags, N):
 	for i in range(3):
 		util.plotWindowsComparation(sac_dm_by_axes[i], file_tags, (f"SAC-DM: {auxAxes[i]}"), int(sys.argv[2]), N)
 	
+def plot_heat_all_axes_windows(sac_am_by_files, sac_dm_by_files, file_tags, N, accelerometer):
+	#Heatmap of all axes window
+	util.plot_heat_jumpingWindowAllAxes(sac_am_by_files, file_tags, (f"Accelerometer {accelerometer}: "), int(sys.argv[2]), N)
+	# util.plot_heat_slidingWindowAllAxes(sac_am_by_files, file_tags, (f"Accelerometer {accelerometer}: "), int(sys.argv[2]), N)
+
+def plot_heat_axis_window(sac_am_by_axes, sac_dm_by_axes, file_tags, N, accelerometer):
+	#Heatmaps of one axis window
+	util.plot_heat_jumpingWindowAxis(sac_am_by_axes, file_tags, (f"Accelerometer {accelerometer}: "), int(sys.argv[2]), N)
+	# util.plot_heat_slidingWindowAxis(sac_am_by_axes, file_tags, (f"Accelerometer {accelerometer}: "), int(sys.argv[2]), N)
+
+def relocateN(files, file_columns, file_paths, N):
+
+	sac_am_by_files = []
+	sac_dm_by_files = []
+	sac_am_by_axes = []
+	sac_dm_by_axes = []
+
+	for i in range(len(file_paths)):
+		file_list = []
+		sac_am_list = []
+		sac_dm_list = []
+		#Extracting axes
+		for j in range(len(file_columns)):
+			file_axes_aux = files[i][file_columns[j]].reshape(-1)
+			file_list.append(file_axes_aux)
+
+			#Getting SACs
+			if( j < 3):
+				sac_am_aux = sac_am(file_axes_aux, N)
+				sac_am_aux.pop()
+				sac_am_list.append(sac_am_aux)
+
+		sac_am_by_files.append(sac_am_list)
+
+	#Number of axes
+	for i in range(3): 
+		sac_am_aux = []
+
+		#Number of files
+		for j in range(len(file_paths)): 
+			sac_am_aux.append(sac_am_by_files[j][i])
+
+		sac_am_by_axes.append(sac_am_aux)
+
+	return sac_am_by_files
+
+def search_optimal(files, file_columns, file_paths, file_tags):
+
+	jumping_list_result_c = []
+	sliding_list_result_c = []
+	jumping_list_result_nc = []
+	sliding_list_result_nc = []
+	title = ""
+	stop = 0
+	for k in range(500,6000,100):
+		window_range = [3,5]
+		for j in range(len(window_range)):
+			print(f"Jumping: Calculating N:{k} ws:{window_range[j]}")
+			dataset = relocateN(files, file_columns,file_paths, k)
+			outputMatrixJumping = util.jumpingWindowAllAxes(dataset, file_tags, title, window_range[j], k)
+			outputMatrixJumping = outputMatrixJumping / 100
+			jumping_result = np.zeros(len(file_tags) + 3)
+
+
+			jump_axes_percent = 0
+			for i in range(len(file_tags)):
+				jumping_result[i] = round(outputMatrixJumping[i][i],2)
+				jump_axes_percent += jumping_result[i]
+
+			jumping_result[len(file_tags)] = k
+			jumping_result[len(file_tags) + 1] = window_range[j]
+			jumping_result[len(file_tags) + 2] = jump_axes_percent
+
+			if(jump_axes_percent >= 4):
+				jumping_list_result_c.append(jumping_result)
+			else:
+				jumping_list_result_nc.append(jumping_result)
+
+			if(jump_axes_percent == 4):
+				stop += 1
+			
+		if(stop == 2):
+			break
+
+	jumping_list_result_nc.sort(key=lambda x: x[6])
+
+	stop = 0
+	for k in range(500,6000,100):
+		window_range = [3,5]
+		for j in range(len(window_range)):
+			print(f"Sliding: Calculating N:{k} ws:{window_range[j]}")
+			dataset = relocateN(files, file_columns,file_paths, k)
+			outputMatrixSliding = util.slidingWindowAllAxes(dataset, file_tags, title, window_range[j], k)
+			outputMatrixSliding = outputMatrixSliding / 100
+			sliding_result = np.zeros(len(file_tags) + 3)
+
+			sli_axes_percent = 0
+			for i in range(len(file_tags)):
+
+				sliding_result[i] = round(outputMatrixSliding[i][i],2)
+				sli_axes_percent += sliding_result[i]
+
+			sliding_result[len(file_tags)] = k
+			sliding_result[len(file_tags) + 1] = window_range[j]
+			sliding_result[len(file_tags) + 2] = sli_axes_percent
+			
+			if(sli_axes_percent >= 4):
+				sliding_list_result_c.append(sliding_result)
+			else:
+				sliding_list_result_nc.append(sliding_result)
+
+			if(sli_axes_percent == 4):
+				stop += 1
+			
+		if(stop == 2):
+			break
+	
+	sliding_list_result_nc.sort(key=lambda x: x[6])
+
+	print("\n\nJumping window \n")
+	for i in range(len(file_tags)):
+		print(f"{file_tags[i]:<12}", end="")
+	print(f"{'N':<10}", end="")
+	print(f"{'window_size':<12}",end="")
+	print(f"{'soma diagonal':<12}",)
+	
+	if(len(jumping_list_result_c) > 0):
+		for i in range(len(jumping_list_result_c)):
+			for j in range(len(jumping_list_result_c[i])):
+				result = jumping_list_result_c[i]
+				print(f"{result[j]:<12}", end="")
+			print("")
+	else:
+		for i in range((len(jumping_list_result_nc) - 1), ((len(jumping_list_result_nc) - 1)) - 2 , -1):
+			for j in range(len(jumping_list_result_nc[i])):
+				result = jumping_list_result_nc[i]
+				print(f"{result[j]:<12}", end="")
+			print("")
+
+	print("\n\nSliding window \n")
+	for i in range(len(file_tags)):
+		print(f"{file_tags[i]:<12}", end="")
+	print(f"{'N':<10}", end="")
+	print(f"{'window_size':<12}",end="")
+	print(f"{'soma diagonal':<12}",)
+
+	if(len(sliding_list_result_c) > 0):
+		for i in range(len(sliding_list_result_c)):
+			for j in range(len(sliding_list_result_c[i])):
+				result = sliding_list_result_c[i]
+				print(f"{result[j]:<12}", end="")
+			print("")
+	else:
+		for i in range((len(sliding_list_result_nc) - 1), ((len(sliding_list_result_nc) - 1)) - 2 , -1):
+			for j in range(len(sliding_list_result_nc[i])):
+				result = sliding_list_result_nc[i]
+				print(f"{result[j]:<12}", end="")
+			print("")
 
 def plot_SAC_AM_DM(sac_am_by_axes, sac_am_by_files, sac_dm_by_axes, sac_dm_by_files, file_tags, N):
 
-	# plot_trainning_test(sac_am_by_files, sac_am_by_files, file_tags)
+	# plot_trainning_test(sac_am_by_files, sac_am_by_files, file_tags, file = 0)
 
 	# plot_sacs_one_figure(sac_am_by_files, sac_dm_by_files, file_tags, N)
 
 	# plot_sacs_by_axes(sac_am_by_files, sac_dm_by_files, file_tags)
 
-	plot_confusion_matrix_save_txt(sac_am_by_axes, sac_dm_by_axes, file_tags, N, save=True)
+	# plot_confusion_matrix_save_txt(sac_am_by_axes, sac_dm_by_axes, file_tags, N, save=True)
 
 	# slinding_window_in_txt(sac_am_by_axes, sac_dm_by_axes, file_tags, N, save=True)
 
-	jumping_window_in_txt(sac_am_by_axes, sac_dm_by_axes, file_tags, N, save=True)
+	# jumping_window_in_txt(sac_am_by_axes, sac_dm_by_axes, file_tags, N, save=True)
 
 	# plot_compare_windows(sac_am_by_axes, sac_dm_by_axes, file_tags, N)
+
+	# plot_heat_all_axes_windows(sac_am_by_files, sac_dm_by_files, file_tags, N, accelerometer=3)
+
+	# plot_heat_axis_window(sac_am_by_axes, sac_dm_by_axes, file_tags, N, accelerometer=2)
 	
-	plt.show()
+	util.show()
 	return 0
 
 def plot_SAC_AM_DM_motor_signals():
@@ -319,21 +470,33 @@ def plot_SAC_AM_DM_motor_signals():
 	# util.taxa_de_aquisicao(C10_t, "C10")
 	# util.taxa_de_aquisicao(C20_t, "C20")
 
-	plt.show()
+	util.show()
 	return 0
 
 #********* Main ********
 
-file_paths = [  "../../files/drone_signals/accel_80_F0.csv",
-			"../../files/drone_signals/accel_80_F6.csv",
-			"../../files/drone_signals/accel_80_F14.csv",
-			"../../files/drone_signals/accel_80_F22.csv" ]
+# file_paths = [     "../../files/hexacopter_signals/nominal_flight/NFlt01n1.csv",
+# 			"../../files/hexacopter_signals/failure_condition_1/FC1Flt01n1.csv",
+# 			"../../files/hexacopter_signals/failure_condition_2/FC2Flt01n1.csv",
+# 			"../../files/hexacopter_signals/failure_condition_3/FC3Flt01n1.csv" ]
 
-file_columns = ['x','y','z','s','t']
+file_paths = [     "../../files/hexacopter_signals/nominal_flight/NFlt04n2.csv",
+			"../../files/hexacopter_signals/failure_condition_1/FC1Flt04n2.csv",
+			"../../files/hexacopter_signals/failure_condition_2/FC2Flt04n2.csv",
+			"../../files/hexacopter_signals/failure_condition_3/FC3Flt04n2.csv" ]
 
-file_tags = [ "F0", "F6", "F14", "F22"]
+# file_paths = [     "../../files/hexacopter_signals/nominal_flight/NFlt05n3.csv",
+# 			"../../files/hexacopter_signals/failure_condition_1/FC1Flt05n3.csv",
+# 			"../../files/hexacopter_signals/failure_condition_2/FC2Flt05n3.csv",
+# 			"../../files/hexacopter_signals/failure_condition_3/FC3Flt05n3.csv" ]
+
+
+file_tags = [ "NF","FC1", "FC2", "FC3"]
+
+file_columns = ['x','y','z','t']
 
 N = int(sys.argv[1])
+window_size = int(sys.argv[2])
 files = []
 file_axes = []
 sac_am_by_files = []
@@ -351,7 +514,7 @@ for i in range(len(file_paths)):
 	sac_am_list = []
 	sac_dm_list = []
 	#Extracting axes
-	for j in range(5):
+	for j in range(len(file_columns)):
 		file_axes_aux = files[i][file_columns[j]].reshape(-1)
 		file_list.append(file_axes_aux)
 
@@ -364,7 +527,7 @@ for i in range(len(file_paths)):
 			sac_am_list.append(sac_am_aux)
 			sac_dm_list.append(sac_dm_aux)
 	
-	file_axes.append(file_list)
+	file_axes.append(np.array(file_list))
 	sac_am_by_files.append(sac_am_list)
 	sac_dm_by_files.append(sac_dm_list)
 
@@ -380,6 +543,7 @@ for i in range(3):
 	sac_am_by_axes.append(sac_am_aux)
 	sac_dm_by_axes.append(sac_dm_aux)
 
-plot_SAC_AM_DM(sac_am_by_axes, sac_am_by_files, sac_dm_by_axes, sac_dm_by_files, file_tags, N)
 
+# plot_SAC_AM_DM(sac_am_by_axes, sac_am_by_files, sac_dm_by_axes, sac_dm_by_files, file_tags, N)
+# search_optimal(files,file_columns, file_paths, file_tags)
 # plot_SAC_AM_DM_motor_signals()

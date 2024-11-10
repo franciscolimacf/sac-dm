@@ -4,7 +4,9 @@ from typing import Optional
 
 class SACDMSchema(BaseModel):
     device_id: int
-    value: float
+    x_value: float
+    y_value: float
+    z_value: float
     timestamp: str
     label: str
     vehicle_id: Optional[int]

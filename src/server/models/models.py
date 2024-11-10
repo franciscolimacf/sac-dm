@@ -28,7 +28,9 @@ class SACDM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     device_id = Column(Integer, ForeignKey('device.id'), nullable=True)
     vehicle_id = Column(Integer, ForeignKey('vehicle.id'), nullable=True)
-    value = Column(Float, nullable=False)
+    x_value = Column(Float, nullable=False)
+    y_value = Column(Float, nullable=False)
+    z_value = Column(Float, nullable=False)
     timestamp = Column(String, nullable=False)
     label = Column(String, nullable=True)
 
@@ -83,6 +85,27 @@ class SACDMDefault(Base):
     y_standard_deviation = Column(Float, nullable=False)
     z_mean = Column(Float, nullable=False)
     z_standard_deviation = Column(Float, nullable=False)
+
+
+class Log(Base):
+    __tablename__ = "log"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    vehicle_id = Column(Integer, ForeignKey('vehicle.id'), nullable=True)
+    device_id = Column(Integer, ForeignKey('device.id'), nullable=True)
+    sacdm_id = Column(Integer, ForeignKey('sac_dm.id'), nullable=True)
+    status_id = Column(Integer, ForeignKey('status_description.id'), nullable=True)
+    timestamp = Column(String, nullable=True)
+    axis = Column(String, nullable=True)
+
+
+class FaultCounter(Base):
+    __tablename__ = "fault_counter"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    vehicle_id = Column(Integer, ForeignKey('vehicle.id'), nullable=True)
+    count_x = Column(Integer, nullable=False)
+    count_y = Column(Integer, nullable=False)
+    count_z = Column(Integer, nullable=False)
+    limit = Column(Integer, nullable=False)
 
 
 Base.metadata.create_all(bind=engine)
